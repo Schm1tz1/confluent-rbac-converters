@@ -30,6 +30,13 @@ services:
       KAFKA_CONFLUENT_LICENSE_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_CONFLUENT_TIER_METADATA_REPLICATION_FACTOR: 1
       KAFKA_CONFLUENT_BALANCER_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_CONFLUENT_CLUSTER_LINK_METADATA_TOPIC_REPLICATION_FACTOR: 1
+      # confluent-audit-log-events' own replication factor is a JSON-blob
+      # property (event.logger.exporter.kafka.topic.config), not a plain
+      # int -- left alone because the broker already self-heals it (tries
+      # replicationFactor=3, fails twice, falls back to 1, succeeds, never
+      # recurs), so overriding it would trade a two-line non-recurring
+      # startup blip for the risk of getting that JSON wrong.
 
       # --- RBAC / MDS ---
       # "mds" is a super.user so it can bypass the authorizer to create role

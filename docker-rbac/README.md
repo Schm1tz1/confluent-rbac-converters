@@ -12,11 +12,16 @@ This has been run and passes end to end (see `test_rbac.sh`), for **both**
 sources this repo supports: `../examples/cc-acls.yaml` fed directly into
 `acl_to_rolebindings.py --target cp-mds` → `apply_to_mds.py --apply`, and
 `../examples/ranger-kafka-policies.json` fed through
-`export_ranger_policies.py` first. It's still a single-node,
-file-user-store, no-TLS setup, so treat it as "the wire format really
-works for both sources," not as a substitute for testing against your
-actual production-shaped MDS deployment (LDAP, mTLS, multiple brokers)
-before trusting this in a real migration.
+`export_ranger_policies.py` first. After applying, `test_rbac.sh` also
+reads every binding back from MDS itself (`verify_bindings.py`, using
+MDS's own lookup endpoints) rather than trusting `apply_to_mds.py`'s 204
+status codes alone -- this is a real check: pointed at a binding that was
+never applied, it fails with `expected role 'DeveloperRead' not found in
+MDS lookup []`. It's still a single-node, file-user-store, no-TLS setup,
+so treat it as "the wire format really works for both sources," not as a
+substitute for testing against your actual production-shaped MDS
+deployment (LDAP, mTLS, multiple brokers) before trusting this in a real
+migration.
 
 ## Quick start
 
@@ -56,3 +61,7 @@ docker compose down -v      # when done
   * `POST /security/1.0/principals/{principal}/roles/{roleName}/bindings` with `{"scope": {...}, "resourcePatterns": [...]}` for a resource-scoped role.
 
   This matches `targets/cp_mds.py`'s `cluster_binding()` vs. `locator_for()` split exactly.
+* **MDS's read side**, used by `verify_bindings.py`, is two different lookup endpoints (neither takes a `"scope"` wrapper -- just a bare `{"clusters": {...}}` body, unlike the write endpoints):
+  * `POST /security/1.0/lookup/principals/{principal}/roleNames` -> `["DeveloperRead", ...]`, the role names bound to that principal at that scope.
+  * `POST /security/1.0/principals/{principal}/roles/{roleName}/resources` -> `[{"resourceType", "name", "patternType"}, ...]`, the resource patterns bound under that role.
+* **Single-node replication factors.** cp-server enables several internal topics/features by default with replication factor 3, which one broker can never satisfy: `KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR`, `KAFKA_CONFLUENT_METADATA_TOPIC_REPLICATION_FACTOR`, `KAFKA_CONFLUENT_LICENSE_TOPIC_REPLICATION_FACTOR`, `KAFKA_CONFLUENT_TIER_METADATA_REPLICATION_FACTOR`, `KAFKA_CONFLUENT_BALANCER_TOPIC_REPLICATION_FACTOR`, and `KAFKA_CONFLUENT_CLUSTER_LINK_METADATA_TOPIC_REPLICATION_FACTOR` are all set to 1. One is deliberately left alone: `confluent-audit-log-events`' replication factor is a JSON-blob property (`event.logger.exporter.kafka.topic.config`), and the broker already self-heals it (tries 3, fails twice, falls back to 1, succeeds, never recurs) -- overriding it would trade a harmless two-line startup blip for the risk of getting that JSON wrong.

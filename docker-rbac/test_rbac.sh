@@ -2,11 +2,13 @@
 # End-to-end test: brings up a real, minimal Confluent Platform broker with
 # RBAC/MDS enabled, waits for it to be ready, sanity-checks both MDS
 # role-binding endpoints with raw curl, then runs the actual pipeline
-# (acl_to_rolebindings.py --target cp-mds -> apply_to_mds.py --apply)
+# (acl_to_rolebindings.py --target cp-mds -> apply_to_mds.py --apply) and
+# reads every binding back via MDS's own lookup endpoints (verify_bindings.py)
 # against it for BOTH sources -- examples/cc-acls.yaml directly, and
 # examples/ranger-kafka-policies.json via export_ranger_policies.py first --
 # proving targets/cp_mds.py's wire format against a live broker for both,
-# not just mock_server.py.
+# not just mock_server.py, and that what got applied is actually what MDS
+# now has (not just a non-error status code).
 #
 # Usage: ./test_rbac.sh [--keep]   (--keep leaves the broker running after)
 set -euo pipefail
@@ -103,7 +105,11 @@ for r in bad:
     echo "FAIL [$label]: $failures non-2xx results (see $results_out)"
     exit 1
   fi
-  echo "PASS [$label]"
+  echo "PASS [$label] (apply)"
+
+  echo "== [$label] pulling bindings back from MDS to verify consistency =="
+  "$PYTHON" verify_bindings.py "$rb_out" "$MDS_URL" "$TOKEN"
+  echo "PASS [$label] (verify)"
 }
 
 # Source 1: an already-canonical CC ACL export.
@@ -116,5 +122,5 @@ run_case cc-acls "$REPO_ROOT/examples/cc-acls.yaml"
 run_case ranger "$WORKDIR/ranger-acls.yaml"
 
 echo
-echo "PASS: both examples/cc-acls.yaml and examples/ranger-kafka-policies.json applied successfully against a live RBAC/MDS broker."
+echo "PASS: both examples/cc-acls.yaml and examples/ranger-kafka-policies.json applied AND verified against a live RBAC/MDS broker."
 rm -rf "$WORKDIR"
