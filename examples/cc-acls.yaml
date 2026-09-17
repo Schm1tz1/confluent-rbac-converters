@@ -1,0 +1,190 @@
+# Sample export_cc_acls.py output for exercising acl_to_rolebindings.py and
+# apply_rolebindings.py / apply_to_mds.py without a live Confluent Cloud
+# cluster. Covers one representative case for every branch of the
+# translation policy documented in README.md:
+#
+#   payments (READ/WRITE), orders- (PREFIXED WRITE), metrics (DESCRIBE,
+#   CREATE+DELETE grouping), config-topic (DESCRIBE_CONFIGS, ALTER_CONFIGS),
+#   legacy-topic (ALTER), scratch (ALL), orders-consumer group (READ+DESCRIBE
+#   grouping), txn-1 transactional ID (WRITE+READ), kafka-cluster (CLUSTER,
+#   skipped unless --cluster-role is passed), blocked-topic (DENY, skipped),
+#   audit-topic (non-* host, skipped), any-topic (wildcard principal,
+#   skipped), reg.* (MATCH pattern_type, skipped), legacy-normalized
+#   (UserV2:* principal normalization), and a bare "*" group name (stays a
+#   wildcard CRN pattern rather than being skipped).
+api_version: kafka/v3
+kind: KafkaAclList
+metadata:
+  cluster_id: lkc-test001
+  source_url: https://pkc-example.aws.confluent.cloud/kafka/v3/clusters/lkc-test001/acls
+  retrieved_at: '2026-09-17T00:00:00+00:00'
+  count: 21
+data:
+  - cluster_id: lkc-test001
+    resource_type: TOPIC
+    resource_name: payments
+    pattern_type: LITERAL
+    principal: 'User:sa-101'
+    host: '*'
+    operation: READ
+    permission: ALLOW
+  - cluster_id: lkc-test001
+    resource_type: TOPIC
+    resource_name: payments
+    pattern_type: LITERAL
+    principal: 'User:sa-102'
+    host: '*'
+    operation: WRITE
+    permission: ALLOW
+  - cluster_id: lkc-test001
+    resource_type: TOPIC
+    resource_name: orders-
+    pattern_type: PREFIXED
+    principal: 'User:sa-103'
+    host: '*'
+    operation: WRITE
+    permission: ALLOW
+  - cluster_id: lkc-test001
+    resource_type: TOPIC
+    resource_name: metrics
+    pattern_type: LITERAL
+    principal: 'User:sa-104'
+    host: '*'
+    operation: DESCRIBE
+    permission: ALLOW
+  - cluster_id: lkc-test001
+    resource_type: TOPIC
+    resource_name: metrics
+    pattern_type: LITERAL
+    principal: 'User:sa-105'
+    host: '*'
+    operation: CREATE
+    permission: ALLOW
+  - cluster_id: lkc-test001
+    resource_type: TOPIC
+    resource_name: metrics
+    pattern_type: LITERAL
+    principal: 'User:sa-105'
+    host: '*'
+    operation: DELETE
+    permission: ALLOW
+  - cluster_id: lkc-test001
+    resource_type: TOPIC
+    resource_name: config-topic
+    pattern_type: LITERAL
+    principal: 'User:sa-106'
+    host: '*'
+    operation: DESCRIBE_CONFIGS
+    permission: ALLOW
+  - cluster_id: lkc-test001
+    resource_type: TOPIC
+    resource_name: config-topic
+    pattern_type: LITERAL
+    principal: 'User:sa-107'
+    host: '*'
+    operation: ALTER_CONFIGS
+    permission: ALLOW
+  - cluster_id: lkc-test001
+    resource_type: TOPIC
+    resource_name: legacy-topic
+    pattern_type: LITERAL
+    principal: 'User:sa-108'
+    host: '*'
+    operation: ALTER
+    permission: ALLOW
+  - cluster_id: lkc-test001
+    resource_type: TOPIC
+    resource_name: scratch
+    pattern_type: LITERAL
+    principal: 'User:sa-109'
+    host: '*'
+    operation: ALL
+    permission: ALLOW
+  - cluster_id: lkc-test001
+    resource_type: GROUP
+    resource_name: orders-consumer
+    pattern_type: LITERAL
+    principal: 'User:sa-110'
+    host: '*'
+    operation: READ
+    permission: ALLOW
+  - cluster_id: lkc-test001
+    resource_type: GROUP
+    resource_name: orders-consumer
+    pattern_type: LITERAL
+    principal: 'User:sa-110'
+    host: '*'
+    operation: DESCRIBE
+    permission: ALLOW
+  - cluster_id: lkc-test001
+    resource_type: TRANSACTIONAL_ID
+    resource_name: txn-1
+    pattern_type: LITERAL
+    principal: 'User:sa-111'
+    host: '*'
+    operation: WRITE
+    permission: ALLOW
+  - cluster_id: lkc-test001
+    resource_type: TRANSACTIONAL_ID
+    resource_name: txn-1
+    pattern_type: LITERAL
+    principal: 'User:sa-111'
+    host: '*'
+    operation: READ
+    permission: ALLOW
+  - cluster_id: lkc-test001
+    resource_type: CLUSTER
+    resource_name: kafka-cluster
+    pattern_type: LITERAL
+    principal: 'User:sa-112'
+    host: '*'
+    operation: ALTER
+    permission: ALLOW
+  - cluster_id: lkc-test001
+    resource_type: TOPIC
+    resource_name: blocked-topic
+    pattern_type: LITERAL
+    principal: 'User:sa-113'
+    host: '*'
+    operation: READ
+    permission: DENY
+  - cluster_id: lkc-test001
+    resource_type: TOPIC
+    resource_name: audit-topic
+    pattern_type: LITERAL
+    principal: 'User:sa-114'
+    host: 10.0.0.5
+    operation: READ
+    permission: ALLOW
+  - cluster_id: lkc-test001
+    resource_type: TOPIC
+    resource_name: any-topic
+    pattern_type: LITERAL
+    principal: 'User:*'
+    host: '*'
+    operation: READ
+    permission: ALLOW
+  - cluster_id: lkc-test001
+    resource_type: TOPIC
+    resource_name: 'reg.*'
+    pattern_type: MATCH
+    principal: 'User:sa-115'
+    host: '*'
+    operation: READ
+    permission: ALLOW
+  - cluster_id: lkc-test001
+    resource_type: TOPIC
+    resource_name: legacy-normalized
+    pattern_type: LITERAL
+    principal: 'UserV2:u-200'
+    host: '*'
+    operation: WRITE
+    permission: ALLOW
+  - cluster_id: lkc-test001
+    resource_type: GROUP
+    resource_name: '*'
+    pattern_type: LITERAL
+    principal: 'User:sa-116'
+    host: '*'
+    operation: READ
+    permission: ALLOW

@@ -1,0 +1,263 @@
+{
+  "serviceName": "cl1_kafka",
+  "serviceId": 7,
+  "policyVersion": 12,
+  "policies": [
+    {
+      "service": "cl1_kafka",
+      "name": "all - cluster",
+      "policyType": 0,
+      "description": "Cluster admin access",
+      "isAuditEnabled": true,
+      "isEnabled": true,
+      "resources": {
+        "cluster": { "values": ["*"], "isExcludes": false, "isRecursive": false }
+      },
+      "policyItems": [
+        {
+          "accesses": [
+            { "type": "kafka_admin", "isAllowed": true },
+            { "type": "cluster_action", "isAllowed": true },
+            { "type": "idempotent_write", "isAllowed": true }
+          ],
+          "users": ["admin", "kafka"],
+          "groups": ["IT"],
+          "conditions": [],
+          "delegateAdmin": true
+        }
+      ],
+      "denyPolicyItems": [],
+      "allowExceptions": [],
+      "denyExceptions": [],
+      "id": 40,
+      "version": 2
+    },
+    {
+      "service": "cl1_kafka",
+      "name": "orders-producer",
+      "policyType": 0,
+      "description": "Producer access to the orders.* topic family",
+      "isAuditEnabled": true,
+      "isEnabled": true,
+      "resources": {
+        "topic": { "values": ["orders.*"], "isExcludes": false, "isRecursive": false }
+      },
+      "policyItems": [
+        {
+          "accesses": [
+            { "type": "publish", "isAllowed": true },
+            { "type": "describe", "isAllowed": true }
+          ],
+          "users": ["svc_orders_producer"],
+          "groups": [],
+          "conditions": [],
+          "delegateAdmin": false
+        }
+      ],
+      "denyPolicyItems": [],
+      "allowExceptions": [],
+      "denyExceptions": [],
+      "id": 41,
+      "version": 1
+    },
+    {
+      "service": "cl1_kafka",
+      "name": "orders-consumer",
+      "policyType": 0,
+      "description": "Consumer access to a single orders topic",
+      "isAuditEnabled": true,
+      "isEnabled": true,
+      "resources": {
+        "topic": { "values": ["orders.created"], "isExcludes": false, "isRecursive": false }
+      },
+      "policyItems": [
+        {
+          "accesses": [
+            { "type": "consume", "isAllowed": true },
+            { "type": "describe", "isAllowed": true }
+          ],
+          "users": [],
+          "groups": ["analytics"],
+          "conditions": [],
+          "delegateAdmin": false
+        }
+      ],
+      "denyPolicyItems": [],
+      "allowExceptions": [],
+      "denyExceptions": [],
+      "id": 42,
+      "version": 1
+    },
+    {
+      "service": "cl1_kafka",
+      "name": "orders-topic-config",
+      "policyType": 0,
+      "description": "Topic config management, approximated broadly downstream",
+      "isAuditEnabled": true,
+      "isEnabled": true,
+      "resources": {
+        "topic": { "values": ["orders.created"], "isExcludes": false, "isRecursive": false }
+      },
+      "policyItems": [
+        {
+          "accesses": [
+            { "type": "configure", "isAllowed": true },
+            { "type": "alter_configs", "isAllowed": true }
+          ],
+          "users": ["svc_orders_admin"],
+          "groups": [],
+          "conditions": [],
+          "delegateAdmin": false
+        }
+      ],
+      "denyPolicyItems": [],
+      "allowExceptions": [],
+      "denyExceptions": [],
+      "id": 43,
+      "version": 1
+    },
+    {
+      "service": "cl1_kafka",
+      "name": "orders-consumergroup",
+      "policyType": 0,
+      "description": "Consumer group access for the orders consumer",
+      "isAuditEnabled": true,
+      "isEnabled": true,
+      "resources": {
+        "consumergroup": { "values": ["orders-consumer-group"], "isExcludes": false, "isRecursive": false }
+      },
+      "policyItems": [
+        {
+          "accesses": [
+            { "type": "consume", "isAllowed": true },
+            { "type": "describe", "isAllowed": true }
+          ],
+          "users": [],
+          "groups": ["analytics"],
+          "conditions": [],
+          "delegateAdmin": false
+        }
+      ],
+      "denyPolicyItems": [],
+      "allowExceptions": [],
+      "denyExceptions": [],
+      "id": 44,
+      "version": 1
+    },
+    {
+      "service": "cl1_kafka",
+      "name": "quarantine-deny",
+      "policyType": 0,
+      "description": "Explicit deny for a quarantined service account",
+      "isAuditEnabled": true,
+      "isEnabled": true,
+      "resources": {
+        "topic": { "values": ["*"], "isExcludes": false, "isRecursive": false }
+      },
+      "policyItems": [],
+      "denyPolicyItems": [
+        {
+          "accesses": [
+            { "type": "publish", "isAllowed": true },
+            { "type": "consume", "isAllowed": true }
+          ],
+          "users": ["svc_quarantined"],
+          "groups": [],
+          "conditions": [],
+          "delegateAdmin": false
+        }
+      ],
+      "allowExceptions": [],
+      "denyExceptions": [],
+      "id": 45,
+      "version": 1
+    },
+    {
+      "service": "cl1_kafka",
+      "name": "reporting-role-based",
+      "policyType": 0,
+      "description": "Access granted via a Ranger role instead of users/groups directly",
+      "isAuditEnabled": true,
+      "isEnabled": true,
+      "resources": {
+        "topic": { "values": ["reporting.summary"], "isExcludes": false, "isRecursive": false }
+      },
+      "policyItems": [
+        {
+          "accesses": [
+            { "type": "consume", "isAllowed": true }
+          ],
+          "users": [],
+          "groups": [],
+          "roles": ["reporting_readers"],
+          "conditions": [],
+          "delegateAdmin": false
+        }
+      ],
+      "denyPolicyItems": [],
+      "allowExceptions": [],
+      "denyExceptions": [],
+      "id": 46,
+      "version": 1
+    },
+    {
+      "service": "cl1_kafka",
+      "name": "legacy-exception-carveout",
+      "policyType": 0,
+      "description": "A broad allow with a narrower exception carved out -- must be skipped entirely, not partially applied",
+      "isAuditEnabled": true,
+      "isEnabled": true,
+      "resources": {
+        "topic": { "values": ["legacy."], "isExcludes": false, "isRecursive": false }
+      },
+      "policyItems": [
+        {
+          "accesses": [
+            { "type": "consume", "isAllowed": true }
+          ],
+          "users": ["svc_legacy_reader"],
+          "groups": [],
+          "conditions": [],
+          "delegateAdmin": false
+        }
+      ],
+      "denyPolicyItems": [],
+      "allowExceptions": [
+        {
+          "accesses": [{ "type": "consume", "isAllowed": true }],
+          "users": ["svc_legacy_blocked"],
+          "groups": [],
+          "conditions": []
+        }
+      ],
+      "denyExceptions": [],
+      "id": 47,
+      "version": 1
+    },
+    {
+      "service": "cl1_kafka",
+      "name": "delegation-token-access",
+      "policyType": 0,
+      "description": "Resource type with no RBAC translation -- should be skipped+warned downstream, not here",
+      "isAuditEnabled": true,
+      "isEnabled": true,
+      "resources": {
+        "delegationtoken": { "values": ["*"], "isExcludes": false, "isRecursive": false }
+      },
+      "policyItems": [
+        {
+          "accesses": [{ "type": "describe", "isAllowed": true }],
+          "users": ["admin"],
+          "groups": [],
+          "conditions": [],
+          "delegateAdmin": false
+        }
+      ],
+      "denyPolicyItems": [],
+      "allowExceptions": [],
+      "denyExceptions": [],
+      "id": 48,
+      "version": 1
+    }
+  ]
+}
