@@ -9,7 +9,7 @@ and recorded in metadata.warnings), and hands each surviving record to the
 --target module (targets/cc_rbac.py or targets/cp_mds.py) for role-name and
 locator translation.
 
-Requires: PyYAML (pip install PyYAML)
+Requires: PyYAML (pip install -r requirements.txt)
 """
 from __future__ import annotations
 

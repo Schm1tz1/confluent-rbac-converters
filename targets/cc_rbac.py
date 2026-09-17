@@ -14,7 +14,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-from common import role_table
+from common import principals, role_table
 from common.apply_shell import ApplyRequestError, RetryableRequestError
 
 RESOURCE_SEGMENTS = {
@@ -74,8 +74,7 @@ def metadata_for(context: dict) -> dict:
 
 
 def principal_for_target(value: str) -> str:
-    # Cloud RBAC uses the User:<id> form for users and service accounts.
-    return "User:" + value.split(":", 1)[1] if value.startswith("UserV2:") else value
+    return principals.normalize(value)
 
 
 def _resource_name(record: dict) -> str:

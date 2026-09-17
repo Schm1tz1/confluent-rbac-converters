@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Export all ACLs for one Confluent Cloud Kafka cluster to YAML.
 
-Requires: PyYAML (pip install PyYAML)
+Requires: PyYAML (pip install -r requirements.txt)
 """
 from __future__ import annotations
 

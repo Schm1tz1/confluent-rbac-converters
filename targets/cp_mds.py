@@ -1,12 +1,21 @@
-"""Confluent Platform RBAC target: MDS scope/resourcePattern bindings.
+"""Confluent Platform RBAC target: MDS role-binding API.
 
-BEST-GUESS / NEEDS VERIFICATION: the role-binding create endpoint shape here
-(POST {mds_url}/security/1.0/principals/{principal}/roles/{role}/bindings
-with a {"scope", "resourcePatterns"} body) and the login flow (GET
-{mds_url}/security/1.0/authenticate with HTTP Basic, returning an
-"auth_token") follow Confluent Platform's documented MDS RBAC API shape, but
-have not been verified against a live MDS instance. Confirm both against
-your actual CP/MDS version before running with --apply.
+Verified against Confluent's documented MDS RBAC REST API (Configure RBAC
+using the REST API; Confluent Metadata API Reference):
+https://docs.confluent.io/platform/current/security/authorization/rbac/rbac-config-using-rest-api.html
+https://docs.confluent.io/platform/current/security/authorization/rbac/mds-api.html
+Not exercised against a live MDS instance -- see mock_server.py to test the
+request/response handling locally, or dry-run against a real broker before
+trusting it in production.
+
+MDS has two distinct role-binding endpoints, and this module picks between
+them based on whether the ACL was cluster-scoped (CLUSTER resource_type) or
+resource-scoped (everything else):
+
+* Cluster-scoped grant: POST .../principals/{principal}/roles/{roleName}
+  with a bare {"clusters": {...}} body -- no resourcePatterns.
+* Resource-scoped grant: POST .../principals/{principal}/roles/{roleName}/bindings
+  with a {"scope": {"clusters": {...}}, "resourcePatterns": [...]} body.
 
 Unlike Confluent Cloud, CP/MDS has no organization/environment/cloud-cluster
 hierarchy -- scope is just the on-prem Kafka cluster id registered with MDS.
@@ -23,7 +32,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-from common import role_table
+from common import principals, role_table
 from common.apply_shell import ApplyRequestError, RetryableRequestError
 
 # MDS resourceType casing, per Kafka's own ResourceType enum used by MDS.
@@ -32,8 +41,6 @@ RESOURCE_SEGMENTS = {
     "GROUP": "Group",
     "TRANSACTIONAL_ID": "TransactionalId",
 }
-
-REQUIRED_APPLY_FIELDS = {"principal", "role_name", "scope", "resource_patterns"}
 
 
 # --- transform side ---
@@ -65,8 +72,7 @@ def metadata_for(context: dict) -> dict:
 
 
 def principal_for_target(value: str) -> str:
-    # MDS expects the same User:<name>/Group:<name> form the canonical record already uses.
-    return value
+    return principals.normalize(value)
 
 
 def _resource_name_and_pattern(record: dict) -> tuple[str, str]:
@@ -83,15 +89,15 @@ def roles_for(record: dict, context: dict) -> tuple[list[str], str | None]:
     return role_table.roles_for(record, RESOURCE_SEGMENTS, context["alter_role"], context["all_role"])
 
 
-def _scope(context: dict) -> dict:
-    return {"clusters": {"kafka-cluster": context["cluster_id"]}}
+def _clusters(context: dict) -> dict:
+    return {"kafka-cluster": context["cluster_id"]}
 
 
 def locator_for(record: dict, context: dict) -> dict:
     resource_type = RESOURCE_SEGMENTS[record["resource_type"]]
     name, pattern_type = _resource_name_and_pattern(record)
     return {
-        "scope": _scope(context),
+        "scope": {"clusters": _clusters(context)},
         "resource_patterns": [{"resourceType": resource_type, "name": name, "patternType": pattern_type}],
     }
 
@@ -99,7 +105,7 @@ def locator_for(record: dict, context: dict) -> dict:
 def cluster_binding(context: dict):
     if not context.get("cluster_role"):
         return None
-    locator = {"scope": _scope(context), "resource_patterns": []}
+    locator = {"cluster_scope": {"clusters": _clusters(context)}}
     return context["cluster_role"], locator, "cluster ACL mapped using explicitly selected cluster role"
 
 
@@ -116,6 +122,17 @@ def endpoint_base(args) -> str:
     if not args.mds_url:
         raise SystemExit("Set --mds-url or MDS_URL")
     return args.mds_url.rstrip("/")
+
+
+def validate_binding(binding: dict, index: int) -> None:
+    missing = {"principal", "role_name"} - set(binding)
+    if missing:
+        raise SystemExit(f"binding {index} is missing: {', '.join(sorted(missing))}")
+    if "cluster_scope" in binding:
+        return
+    missing = {"scope", "resource_patterns"} - set(binding)
+    if missing:
+        raise SystemExit(f"binding {index} is missing: {', '.join(sorted(missing))} (or 'cluster_scope' for a cluster-scoped binding)")
 
 
 def auth_headers(args) -> dict[str, str]:
@@ -142,19 +159,24 @@ def auth_headers(args) -> dict[str, str]:
 
 
 def build_payload(binding: dict) -> dict:
-    return {
-        "principal": binding["principal"],
-        "role_name": binding["role_name"],
-        "scope": binding["scope"],
-        "resource_patterns": binding["resource_patterns"],
-    }
+    payload = {"principal": binding["principal"], "role_name": binding["role_name"]}
+    if "cluster_scope" in binding:
+        payload["cluster_scope"] = binding["cluster_scope"]
+    else:
+        payload["scope"] = binding["scope"]
+        payload["resource_patterns"] = binding["resource_patterns"]
+    return payload
 
 
 def submit_one(payload: dict, headers: dict[str, str], base: str):
     principal = urllib.parse.quote(payload["principal"], safe="")
     role = urllib.parse.quote(payload["role_name"], safe="")
-    url = f"{base}/security/1.0/principals/{principal}/roles/{role}/bindings"
-    body = json.dumps({"scope": payload["scope"], "resourcePatterns": payload["resource_patterns"]}).encode()
+    if "cluster_scope" in payload:
+        url = f"{base}/security/1.0/principals/{principal}/roles/{role}"
+        body = json.dumps(payload["cluster_scope"]).encode()
+    else:
+        url = f"{base}/security/1.0/principals/{principal}/roles/{role}/bindings"
+        body = json.dumps({"scope": payload["scope"], "resourcePatterns": payload["resource_patterns"]}).encode()
     request = urllib.request.Request(url, data=body, headers=headers, method="POST")
     try:
         with urllib.request.urlopen(request, timeout=60) as response:

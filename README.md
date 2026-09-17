@@ -22,7 +22,7 @@ Both exporters write the same canonical ACL-record schema (`resource_type`, `res
 | Apply | `apply_rolebindings.py` | `apply_to_mds.py` |
 | Locator | `crn_pattern` string | `scope` + `resource_patterns` |
 
-**The CP/MDS target's wire format (`targets/cp_mds.py`) is a best-guess based on Confluent Platform's documented RBAC API and has not been verified against a live MDS instance.** Confirm the role-binding endpoint shape and login flow against your actual MDS version before running `apply_to_mds.py --apply`. It also assumes CP RBAC's predefined role names (`DeveloperRead`/`DeveloperWrite`/`DeveloperManage`/`ResourceOwner`/...) match Confluent Cloud's, via the shared `common/role_table.py` — verify that too.
+**The CP/MDS target's wire format (`targets/cp_mds.py`) has been verified against a real, live Confluent Platform broker with RBAC/MDS enabled** — see `docker-rbac/` — not just against Confluent's docs and `mock_server.py`. MDS distinguishes a cluster-scoped bind (`POST .../roles/{role}`, plain `{"clusters": {...}}` body) from a resource-scoped bind (`POST .../roles/{role}/bindings`, `{"scope", "resourcePatterns"}` body), and `targets/cp_mds.py` picks the right one per binding; `docker-rbac/test_rbac.sh` runs both `examples/cc-acls.yaml` and `examples/ranger-kafka-policies.json` (via `export_ranger_policies.py`) through both paths against a real broker, so both sources are covered, not just the CC one. That broker is single-node with a FILE user store and no TLS, though, so it confirms the wire format, not every property of your actual production-shaped MDS deployment (LDAP, mTLS, multiple brokers) — verify those against your own environment before `--apply`. The role-name assumption (CP RBAC's predefined roles matching Confluent Cloud's, via the shared `common/role_table.py`) is unaffected by this and still worth double-checking against your CP version.
 
 ## The important distinction
 
@@ -117,12 +117,30 @@ Granular Kafka RBAC is supported only on supported cluster types; validate the t
 Try the transform and dry-run steps against the bundled example first — no credentials or live cluster needed:
 
 ```bash
-python3 -m pip install PyYAML
+python3 -m pip install -r requirements.txt
 python3 acl_to_rolebindings.py examples/cc-acls.yaml \
   --organization-id org-1 --environment-id env-1 --cluster-role ClusterAdmin \
   --output /tmp/rolebindings.yaml
 python3 apply_rolebindings.py /tmp/rolebindings.yaml   # dry-run, prints without any network call
 ```
+
+To exercise the real network paths -- auth header construction, the MDS login flow, and 429/5xx retry/backoff -- without touching a live cluster, run `mock_server.py` (stdlib only, no dependencies) and point the scripts at it:
+
+```bash
+python3 mock_server.py --port 8089 &
+
+CC_API_KEY=fake CC_API_SECRET=fake python3 export_cc_acls.py \
+  --cluster-id lkc-mock1 --rest-base-url http://127.0.0.1:8089 --output /tmp/acls.yaml
+python3 acl_to_rolebindings.py /tmp/acls.yaml --organization-id org-1 --environment-id env-1 --output /tmp/rb.yaml
+CC_API_KEY=fake CC_API_SECRET=fake python3 apply_rolebindings.py /tmp/rb.yaml \
+  --apply --endpoint http://127.0.0.1:8089/iam/v2/role-bindings
+
+# and for the MDS path:
+python3 acl_to_rolebindings.py /tmp/acls.yaml --target cp-mds --kafka-cluster-id lkc-mock1 --output /tmp/rb-cp.yaml
+MDS_USERNAME=fake MDS_PASSWORD=fake python3 apply_to_mds.py /tmp/rb-cp.yaml --apply --mds-url http://127.0.0.1:8089
+```
+
+`mock_server.py`'s docstring documents its canned dataset and its failure-injection sentinels (`role_name: TriggerRateLimit` / `TriggerServerError`) for forcing the retry path.
 
 Set credentials without putting them in command history, either directly:
 
@@ -130,7 +148,7 @@ Set credentials without putting them in command history, either directly:
 export CC_API_KEY='...'
 export CC_API_SECRET='...'
 # Or use CC_ACCESS_TOKEN='...'
-python3 -m pip install PyYAML
+python3 -m pip install -r requirements.txt
 ```
 
 or via an env file (copy `.env.example` to `.env`, fill it in, never commit `.env`):
@@ -138,7 +156,7 @@ or via an env file (copy `.env.example` to `.env`, fill it in, never commit `.en
 ```bash
 cp .env.example .env
 set -a; source .env; set +a
-python3 -m pip install PyYAML
+python3 -m pip install -r requirements.txt
 ```
 
 Export ACLs. Use the Kafka REST base URL for the target cluster, not the IAM API host. `--cluster-id`/`--rest-base-url` fall back to `CC_CLUSTER_ID`/`CC_REST_BASE_URL` if set (e.g. in `.env`), so you can omit them once those are exported:
@@ -205,6 +223,9 @@ Any source can feed any target: `export_ranger_policies.py` → `acl_to_rolebind
 * `targets/cc_rbac.py`, `targets/cp_mds.py` — per-target role/locator mapping, auth, and wire format.
 * `examples/ranger-kafka-policies.json` — a sample Ranger Kafka policy export (adapted from Apache Ranger's own test fixtures) covering topics, prefixed topics, consumer groups, cluster-admin, deny, Ranger-role, and exception-carveout policies, for exercising `export_ranger_policies.py`.
 * `examples/cc-acls.yaml` — a sample `export_cc_acls.py`-shaped ACL export covering every branch of the translation policy (every operation, `PREFIXED`/wildcard/`MATCH` patterns, `CLUSTER`, `DENY`, non-`*` host, wildcard principal, `UserV2:*` normalization, grouping of multiple ACLs into one binding), for exercising `acl_to_rolebindings.py`/`apply_rolebindings.py`/`apply_to_mds.py` without a live cluster.
+* `mock_server.py` — a stdlib-only local mock of the Kafka v3 ACL, IAM v2 role-bindings, and MDS RBAC APIs, for exercising the real network/auth/retry code paths in `export_cc_acls.py`, `apply_rolebindings.py`, and `apply_to_mds.py` without a live cluster or MDS broker.
+* `docker-rbac/` — a Docker Compose setup for a minimal, real, local Confluent Platform broker with RBAC/MDS enabled (KRaft, FILE user store, no LDAP/TLS), plus `test_rbac.sh` which runs both sources (`examples/cc-acls.yaml`, and `examples/ranger-kafka-policies.json` via `export_ranger_policies.py`) through the real `--target cp-mds` pipeline against it end to end. This is what actually verified `targets/cp_mds.py`'s wire format, beyond what `mock_server.py` alone could prove.
+* `common/principals.py` — the `UserV2:` → `User:` principal normalization shared by every RBAC target.
 
 ## Sources
 

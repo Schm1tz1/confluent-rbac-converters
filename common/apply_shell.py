@@ -29,6 +29,15 @@ class ApplyRequestError(Exception):
 
 
 def validate_bindings(bindings: list[dict], target) -> None:
+    # Most targets have one fixed required-field set (REQUIRED_APPLY_FIELDS).
+    # A target whose bindings can take more than one valid shape (e.g.
+    # cp_mds's cluster-scoped vs. resource-scoped bindings) defines its own
+    # validate_binding(binding, index) instead.
+    validator = getattr(target, "validate_binding", None)
+    if validator is not None:
+        for index, binding in enumerate(bindings):
+            validator(binding, index)
+        return
     required = target.REQUIRED_APPLY_FIELDS
     for index, binding in enumerate(bindings):
         missing = required - set(binding)

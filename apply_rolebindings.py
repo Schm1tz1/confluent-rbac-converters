@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Submit RoleBinding YAML to the Confluent Cloud IAM v2 API.
 
-Dry-run is the default. Add --apply to POST. Requires: PyYAML (pip install PyYAML)
+Dry-run is the default. Add --apply to POST. Requires: PyYAML (pip install -r requirements.txt)
 
 For Confluent Platform / MDS role bindings (from `acl_to_rolebindings.py
 --target cp-mds`), use apply_to_mds.py instead -- the wire format and auth

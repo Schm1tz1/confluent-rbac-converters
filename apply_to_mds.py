@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Submit RoleBinding YAML to a Confluent Platform cluster via the MDS RBAC API.
 
-Dry-run is the default. Add --apply to POST. Requires: PyYAML (pip install PyYAML)
+Dry-run is the default. Add --apply to POST. Requires: PyYAML (pip install -r requirements.txt)
 
 Input must come from `acl_to_rolebindings.py --target cp-mds` -- bindings
 carry {"scope", "resource_patterns"} rather than IAM v2's {"crn_pattern"},

@@ -17,7 +17,7 @@ https://github.com/apache/ranger/blob/master/agents-common/src/main/resources/se
 
 This only reads a local file -- it does not call the Ranger Admin REST API.
 
-Requires: PyYAML (pip install PyYAML)
+Requires: PyYAML (pip install -r requirements.txt)
 """
 from __future__ import annotations
 
@@ -35,9 +35,11 @@ RESOURCE_TYPE_MAP = {
     "cluster": "CLUSTER",
     "consumergroup": "GROUP",
     "transactionalid": "TRANSACTIONAL_ID",
-    # "delegationtoken" and anything else falls through to .upper() below;
-    # acl_to_rolebindings.py already skips+warns on any resource_type with
-    # no configured RBAC translation, so no special-casing is needed here.
+    # DELEGATION_TOKEN has no RBAC translation (not in any target's
+    # RESOURCE_SEGMENTS), so acl_to_rolebindings.py always skips+warns on it;
+    # it's listed explicitly here only so that warning names the same
+    # resource_type value Confluent's own ACL API uses.
+    "delegationtoken": "DELEGATION_TOKEN",
 }
 
 # publish/consume/describe/create/delete/describe_configs/alter_configs/alter
