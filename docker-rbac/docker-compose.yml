@@ -23,6 +23,13 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      # cp-server enables these internal topics/features by default with a
+      # replication factor of 3, which a single-node cluster can never
+      # satisfy -- without this they log repeated (non-fatal but noisy)
+      # topic-creation errors instead of ever settling.
+      KAFKA_CONFLUENT_LICENSE_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_CONFLUENT_TIER_METADATA_REPLICATION_FACTOR: 1
+      KAFKA_CONFLUENT_BALANCER_TOPIC_REPLICATION_FACTOR: 1
 
       # --- RBAC / MDS ---
       # "mds" is a super.user so it can bypass the authorizer to create role
