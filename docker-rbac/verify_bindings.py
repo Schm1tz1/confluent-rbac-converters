@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """Read-after-write check for a --target cp-mds RoleBinding YAML: for every
-binding, ask MDS's own lookup endpoints whether it's actually there, rather
-than trusting apply_to_mds.py's 204 status codes alone.
+binding, ask MDS's own lookup endpoints whether it is there, instead of
+trusting apply_to_mds.py's 204 status codes.
 
-Two MDS lookup endpoints, confirmed against a live broker (mock_server.py
-does not implement these -- they're read-only and only meaningful against
-a real MDS auth store):
+It uses two MDS lookup endpoints, confirmed against a live broker.
+mock_server.py does not implement them, because they only mean something
+against a real MDS auth store:
 
 * POST /security/1.0/lookup/principals/{principal}/roleNames
   body {"clusters": {...}} (bare, no "scope" wrapper) -> ["RoleA", "RoleB"]

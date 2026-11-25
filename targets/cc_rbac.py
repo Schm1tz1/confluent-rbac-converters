@@ -1,9 +1,8 @@
 """Confluent Cloud IAM v2 RBAC target: CRN patterns and the IAM v2 REST API.
 
-This is the extraction of what used to be CC-specific code baked directly
-into acl_to_rolebindings.py and apply_rolebindings.py. Behavior is
-unchanged from before the refactor -- same role table, same CRN shape, same
-endpoint/auth/retry semantics.
+This code used to live directly in acl_to_rolebindings.py and
+apply_rolebindings.py. Behavior is unchanged by the move: same role table,
+same CRN shape, same endpoint/auth/retry semantics.
 """
 from __future__ import annotations
 

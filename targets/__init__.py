@@ -7,8 +7,8 @@ transform-side `add_transform_cli_args`, `resolve_context`, `metadata_for`,
 apply-side `REQUIRED_APPLY_FIELDS`, `add_apply_cli_args`, `auth_headers`,
 `endpoint_base`, `build_payload`, `submit_one`.
 
-Adding a new target is one new module here plus one registry entry below —
-nothing in the sources, common/invariants.py, or common/apply_shell.py needs
+Adding a new target takes one new module here plus one registry entry below.
+Nothing in the sources, common/invariants.py, or common/apply_shell.py needs
 to change.
 """
 from __future__ import annotations

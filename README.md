@@ -1,6 +1,6 @@
 # Confluent Cloud ACL → RBAC migration overview
 
-This package is a conservative, review-first migration path:
+This is a conservative, review-first migration path:
 
 1. Export Kafka ACLs (or Apache Ranger Kafka-service policies) to a canonical YAML record schema.
 2. Convert representable `ALLOW` records to RoleBinding payloads for a chosen RBAC target.
@@ -22,9 +22,13 @@ Both exporters write the same canonical ACL-record schema (`resource_type`, `res
 | Apply | `apply_rolebindings.py` | `apply_to_mds.py` |
 | Locator | `crn_pattern` string | `scope` + `resource_patterns` |
 
-**The CP/MDS target's wire format (`targets/cp_mds.py`) has been verified against a real, live Confluent Platform broker with RBAC/MDS enabled** — see `docker-rbac/` — not just against Confluent's docs and `mock_server.py`. MDS distinguishes a cluster-scoped bind (`POST .../roles/{role}`, plain `{"clusters": {...}}` body) from a resource-scoped bind (`POST .../roles/{role}/bindings`, `{"scope", "resourcePatterns"}` body), and `targets/cp_mds.py` picks the right one per binding; `docker-rbac/test_rbac.sh` runs both `examples/cc-acls.yaml` and `examples/ranger-kafka-policies.json` (via `export_ranger_policies.py`) through both paths against a real broker, so both sources are covered, not just the CC one -- and then reads every binding back via MDS's own lookup endpoints (`docker-rbac/verify_bindings.py`), rather than trusting `apply_to_mds.py`'s 204 status codes alone. That broker is single-node with a FILE user store and no TLS, though, so it confirms the wire format, not every property of your actual production-shaped MDS deployment (LDAP, mTLS, multiple brokers) — verify those against your own environment before `--apply`. The role-name assumption (CP RBAC's predefined roles matching Confluent Cloud's, via the shared `common/role_table.py`) is unaffected by this and still worth double-checking against your CP version.
+The CP/MDS target's wire format (`targets/cp_mds.py`) was tested against a live Confluent Platform broker with RBAC/MDS enabled (see `docker-rbac/`), not only against Confluent's docs and `mock_server.py`. MDS has two bind endpoints. A cluster-scoped bind is `POST .../roles/{role}` with a plain `{"clusters": {...}}` body. A resource-scoped bind is `POST .../roles/{role}/bindings` with a `{"scope", "resourcePatterns"}` body. `targets/cp_mds.py` picks the right one per binding.
 
-## The important distinction
+`docker-rbac/test_rbac.sh` runs `examples/cc-acls.yaml` and `examples/ranger-kafka-policies.json` (via `export_ranger_policies.py`) through both paths against that broker. It then reads every binding back through MDS's lookup endpoints (`docker-rbac/verify_bindings.py`) instead of trusting the 204 status codes from `apply_to_mds.py`.
+
+The test broker is single-node with a FILE user store and no TLS. It confirms the wire format, not the properties of a production MDS deployment (LDAP, mTLS, multiple brokers), so verify those in your own environment before `--apply`. Also check that your CP version's predefined roles have the same names as Confluent Cloud's, which `common/role_table.py` assumes.
+
+## ACLs vs. RBAC
 
 An ACL is a Kafka data-plane rule: principal + Kafka resource + operation + permission + host + pattern. Confluent Cloud RBAC is a binding of a principal to a predefined role on a Confluent Resource Name (CRN) pattern. RBAC roles are bundles of permissions, so the conversion is not lossless.
 
@@ -74,18 +78,18 @@ The converter skips `CLUSTER` ACLs unless you explicitly provide `--cluster-role
 
 Ranger resource types map onto the same canonical `resource_type` values ACLs use: `topic`→`TOPIC`, `cluster`→`CLUSTER`, `consumergroup`→`GROUP`, `transactionalid`→`TRANSACTIONAL_ID`. `delegationtoken` and anything else pass through unmapped and get skipped with a warning by `acl_to_rolebindings.py`, the same as any other unrecognized `resource_type`.
 
-A Ranger resource value that ends in `*` (e.g. `orders.*`) becomes `pattern_type: PREFIXED` with the `*` stripped; anything else becomes `LITERAL` (including a bare `*`, which stays a wildcard resource name — same convention as ACLs). `denyPolicyItems` become `permission: DENY` records, which `acl_to_rolebindings.py` then skips exactly like a Kafka ACL `DENY` — never silently dropped, always in `metadata.warnings`.
+A Ranger resource value that ends in `*` (e.g. `orders.*`) becomes `pattern_type: PREFIXED` with the `*` stripped; anything else becomes `LITERAL` (including a bare `*`, which stays a wildcard resource name, as with ACLs). `denyPolicyItems` become `permission: DENY` records, which `acl_to_rolebindings.py` then skips exactly like a Kafka ACL `DENY`. A deny is never silently dropped and always appears in `metadata.warnings`.
 
-Two Ranger constructs are **not** translated at all, and skip the entire containing policy for safety rather than approximate it:
+Two Ranger constructs are not translated. Each skips the whole containing policy with a warning instead of approximating it:
 
-* A `policyItem` granting access via `roles` (a Ranger-role indirection over users/groups) instead of listing `users`/`groups` directly — resolving it would require an extra Ranger API call, so it's skipped with a warning.
-* A policy with non-empty `allowExceptions`/`denyExceptions` — an exception narrows a grant in a way an RBAC binding cannot represent, and ignoring it would silently widen access, so the whole policy is skipped with a warning instead.
+* A `policyItem` that grants access via `roles` (a Ranger-role indirection over users/groups) instead of listing `users`/`groups` directly. Resolving it would need an extra Ranger API call.
+* A policy with non-empty `allowExceptions`/`denyExceptions`. An exception narrows a grant in a way an RBAC binding cannot represent, and ignoring it would silently widen access.
 
 ## CLI extension points
 
 * `acl_to_rolebindings.py --target {cc,cp-mds}` selects the RBAC flavor (default `cc`); each target module in `targets/` owns its own role/locator mapping and CLI flags, but every source-agnostic design invariant above still applies identically regardless of target.
-* Adding a third source means writing one new `export_*.py` that emits the canonical record schema — no changes anywhere else.
-* Adding a third target means writing one new `targets/*.py` implementing the same interface as `targets/cc_rbac.py`/`targets/cp_mds.py`, registering it in `targets/__init__.py`, and (if it needs its own wire format) a thin `apply_to_*.py` — no changes to the sources or to `common/invariants.py`.
+* Adding a third source means writing one new `export_*.py` that emits the canonical record schema, with no changes anywhere else.
+* Adding a third target means writing one new `targets/*.py` implementing the same interface as `targets/cc_rbac.py`/`targets/cp_mds.py`, registering it in `targets/__init__.py`, and (if it needs its own wire format) a thin `apply_to_*.py`, with no changes to the sources or to `common/invariants.py`.
 
 ## RoleBinding → ACL: reverse direction
 
@@ -114,7 +118,7 @@ Granular Kafka RBAC is supported only on supported cluster types; validate the t
 
 ## Runbook
 
-Try the transform and dry-run steps against the bundled example first — no credentials or live cluster needed:
+Try the transform and dry-run steps against the bundled example first (no credentials or live cluster needed):
 
 ```bash
 python3 -m pip install -r requirements.txt
@@ -124,7 +128,7 @@ python3 acl_to_rolebindings.py examples/cc-acls.yaml \
 python3 apply_rolebindings.py /tmp/rolebindings.yaml   # dry-run, prints without any network call
 ```
 
-To exercise the real network paths -- auth header construction, the MDS login flow, and 429/5xx retry/backoff -- without touching a live cluster, run `mock_server.py` (stdlib only, no dependencies) and point the scripts at it:
+To exercise the real network paths (auth header construction, the MDS login flow, and 429/5xx retry/backoff) without a live cluster, run `mock_server.py` (stdlib only) and point the scripts at it:
 
 ```bash
 python3 mock_server.py --port 8089 &
@@ -140,9 +144,9 @@ python3 acl_to_rolebindings.py /tmp/acls.yaml --target cp-mds --kafka-cluster-id
 MDS_USERNAME=fake MDS_PASSWORD=fake python3 apply_to_mds.py /tmp/rb-cp.yaml --apply --mds-url http://127.0.0.1:8089
 ```
 
-`mock_server.py`'s docstring documents its canned dataset and its failure-injection sentinels (`role_name: TriggerRateLimit` / `TriggerServerError`) for forcing the retry path.
+`mock_server.py`'s docstring documents its canned dataset and the `role_name: TriggerRateLimit` / `TriggerServerError` sentinels that force the retry path.
 
-Set credentials without putting them in command history, either directly:
+To keep credentials out of command history, export them directly:
 
 ```bash
 export CC_API_KEY='...'
@@ -212,20 +216,20 @@ Any source can feed any target: `export_ranger_policies.py` → `acl_to_rolebind
 
 ## Files
 
-* `export_cc_acls.py` — retrieves Confluent Cloud ACLs and writes the canonical source YAML.
-* `export_ranger_policies.py` — flattens a local Apache Ranger Kafka-service policy export JSON into the same canonical source YAML.
-* `acl_to_rolebindings.py` — converts canonical YAML to reviewable RoleBinding YAML for the selected `--target`.
-* `apply_rolebindings.py` — dry-runs or submits `--target cc` RoleBindings through IAM v2.
-* `apply_to_mds.py` — dry-runs or submits `--target cp-mds` RoleBindings through the MDS RBAC API.
-* `common/invariants.py` — the source- and target-agnostic filter/grouping engine every translation goes through.
-* `common/apply_shell.py` — the target-agnostic dry-run/retry/backoff/results-log shell every apply script uses.
-* `common/role_table.py` — the Kafka-operation → RBAC role-name table shared by both RBAC targets.
-* `targets/cc_rbac.py`, `targets/cp_mds.py` — per-target role/locator mapping, auth, and wire format.
-* `examples/ranger-kafka-policies.json` — a sample Ranger Kafka policy export (adapted from Apache Ranger's own test fixtures) covering topics, prefixed topics, consumer groups, cluster-admin, deny, Ranger-role, and exception-carveout policies, for exercising `export_ranger_policies.py`.
-* `examples/cc-acls.yaml` — a sample `export_cc_acls.py`-shaped ACL export covering every branch of the translation policy (every operation, `PREFIXED`/wildcard/`MATCH` patterns, `CLUSTER`, `DENY`, non-`*` host, wildcard principal, `UserV2:*` normalization, grouping of multiple ACLs into one binding), for exercising `acl_to_rolebindings.py`/`apply_rolebindings.py`/`apply_to_mds.py` without a live cluster.
-* `mock_server.py` — a stdlib-only local mock of the Kafka v3 ACL, IAM v2 role-bindings, and MDS RBAC APIs, for exercising the real network/auth/retry code paths in `export_cc_acls.py`, `apply_rolebindings.py`, and `apply_to_mds.py` without a live cluster or MDS broker.
-* `docker-rbac/` — a Docker Compose setup for a minimal, real, local Confluent Platform broker with RBAC/MDS enabled (KRaft, FILE user store, no LDAP/TLS), plus `test_rbac.sh` which runs both sources (`examples/cc-acls.yaml`, and `examples/ranger-kafka-policies.json` via `export_ranger_policies.py`) through the real `--target cp-mds` pipeline against it end to end, then reads every binding back from MDS (`verify_bindings.py`) to confirm it's actually there. This is what actually verified `targets/cp_mds.py`'s wire format, beyond what `mock_server.py` alone could prove.
-* `common/principals.py` — the `UserV2:` → `User:` principal normalization shared by every RBAC target.
+* `export_cc_acls.py`: retrieves Confluent Cloud ACLs and writes the canonical source YAML.
+* `export_ranger_policies.py`: flattens a local Apache Ranger Kafka-service policy export JSON into the same canonical source YAML.
+* `acl_to_rolebindings.py`: converts canonical YAML to reviewable RoleBinding YAML for the selected `--target`.
+* `apply_rolebindings.py`: dry-runs or submits `--target cc` RoleBindings through IAM v2.
+* `apply_to_mds.py`: dry-runs or submits `--target cp-mds` RoleBindings through the MDS RBAC API.
+* `common/invariants.py`: the source- and target-agnostic filter/grouping engine every translation goes through.
+* `common/apply_shell.py`: the target-agnostic dry-run/retry/backoff/results-log shell every apply script uses.
+* `common/role_table.py`: the Kafka-operation → RBAC role-name table shared by both RBAC targets.
+* `targets/cc_rbac.py`, `targets/cp_mds.py`: per-target role/locator mapping, auth, and wire format.
+* `examples/ranger-kafka-policies.json`: a sample Ranger Kafka policy export (adapted from Apache Ranger's own test fixtures) covering topics, prefixed topics, consumer groups, cluster-admin, deny, Ranger-role, and exception-carveout policies, for exercising `export_ranger_policies.py`.
+* `examples/cc-acls.yaml`: a sample `export_cc_acls.py`-shaped ACL export covering every branch of the translation policy (every operation, `PREFIXED`/wildcard/`MATCH` patterns, `CLUSTER`, `DENY`, non-`*` host, wildcard principal, `UserV2:*` normalization, grouping of multiple ACLs into one binding), for exercising `acl_to_rolebindings.py`/`apply_rolebindings.py`/`apply_to_mds.py` without a live cluster.
+* `mock_server.py`: a stdlib-only local mock of the Kafka v3 ACL, IAM v2 role-bindings, and MDS RBAC APIs, for exercising the real network/auth/retry code paths in `export_cc_acls.py`, `apply_rolebindings.py`, and `apply_to_mds.py` without a live cluster or MDS broker.
+* `docker-rbac/`: a Docker Compose setup for a minimal, real, local Confluent Platform broker with RBAC/MDS enabled (KRaft, FILE user store, no LDAP/TLS), plus `test_rbac.sh` which runs both sources (`examples/cc-acls.yaml`, and `examples/ranger-kafka-policies.json` via `export_ranger_policies.py`) through the real `--target cp-mds` pipeline against it end to end, then reads every binding back from MDS (`verify_bindings.py`).
+* `common/principals.py`: the `UserV2:` → `User:` principal normalization shared by every RBAC target.
 
 ## Sources
 

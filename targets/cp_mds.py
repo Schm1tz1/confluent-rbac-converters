@@ -1,12 +1,13 @@
 """Confluent Platform RBAC target: MDS role-binding API.
 
-Verified against Confluent's documented MDS RBAC REST API (Configure RBAC
-using the REST API; Confluent Metadata API Reference):
+Follows Confluent's documented MDS RBAC REST API (Configure RBAC using the
+REST API; Confluent Metadata API Reference):
 https://docs.confluent.io/platform/current/security/authorization/rbac/rbac-config-using-rest-api.html
 https://docs.confluent.io/platform/current/security/authorization/rbac/mds-api.html
-Not exercised against a live MDS instance -- see mock_server.py to test the
-request/response handling locally, or dry-run against a real broker before
-trusting it in production.
+docker-rbac/test_rbac.sh exercised both endpoints against a live
+single-node MDS broker (FILE user store, no TLS). Dry-run against your own
+MDS before trusting it in production. mock_server.py tests the
+request/response handling locally.
 
 MDS has two distinct role-binding endpoints, and this module picks between
 them based on whether the ACL was cluster-scoped (CLUSTER resource_type) or

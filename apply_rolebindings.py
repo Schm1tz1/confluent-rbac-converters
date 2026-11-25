@@ -4,8 +4,8 @@
 Dry-run is the default. Add --apply to POST. Requires: PyYAML (pip install -r requirements.txt)
 
 For Confluent Platform / MDS role bindings (from `acl_to_rolebindings.py
---target cp-mds`), use apply_to_mds.py instead -- the wire format and auth
-are different enough that they are not interchangeable.
+--target cp-mds`), use apply_to_mds.py instead. Its wire format and auth differ,
+so the two scripts are not interchangeable.
 """
 from __future__ import annotations
 

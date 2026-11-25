@@ -5,9 +5,9 @@ Dry-run is the default. Add --apply to POST. Requires: PyYAML (pip install -r re
 
 Input must come from `acl_to_rolebindings.py --target cp-mds` -- bindings
 carry {"scope", "resource_patterns"} rather than IAM v2's {"crn_pattern"},
-so CC-targeted RoleBinding YAML (the default `--target cc` output) will fail
-validation here. See targets/cp_mds.py for the (best-guess, unverified
-against a live MDS instance) wire-format assumptions.
+so CC-targeted RoleBinding YAML (the default `--target cc` output) fails
+validation here. See targets/cp_mds.py for the wire format, which
+docker-rbac/test_rbac.sh checked against a live MDS broker.
 """
 from __future__ import annotations
 

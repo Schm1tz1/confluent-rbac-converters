@@ -1,10 +1,9 @@
 """Generic dry-run/apply/retry/results-log shell shared by every apply target.
 
-Only the 429/5xx-vs-other-4xx retry decision and the request/response shape
-are target-specific (see targets/*.py's submit_one()); the surrounding
-loop -- dry-run short-circuit, exponential backoff honoring Retry-After,
---continue-on-error, and the JSON results log -- is transport-generic and
-lives here exactly once.
+The 429/5xx-vs-other-4xx retry decision and the request/response shape are
+target-specific (see targets/*.py's submit_one()). The surrounding loop is
+not, and lives here: the dry-run short-circuit, exponential backoff that
+honors Retry-After, --continue-on-error, and the JSON results log.
 """
 from __future__ import annotations
 

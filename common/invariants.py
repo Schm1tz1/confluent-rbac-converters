@@ -1,12 +1,12 @@
 """Design-invariant filtering shared by every source and every target.
 
-These checks are what any RBAC system requires to hold, regardless of which
-source produced the ACL-like record or which RBAC flavor it is being
-translated to: DENY and non-ALLOW permissions have no RBAC representation,
-RBAC bindings cannot carry a host restriction, wildcard principals are not
-translatable, and only LITERAL/PREFIXED resource patterns are safely
-representable. This file enforces those rules exactly once; target modules
-never see a record that has already failed one of them.
+Any RBAC system needs these checks, whichever source produced the ACL-like
+record and whichever RBAC flavor it is translated to. DENY and non-ALLOW
+permissions have no RBAC representation, RBAC bindings cannot carry a host
+restriction, wildcard principals are not translatable, and only
+LITERAL/PREFIXED resource patterns can be represented safely. This file
+enforces those rules once. Target modules never see a record that failed one
+of them.
 """
 from __future__ import annotations
 

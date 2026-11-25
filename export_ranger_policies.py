@@ -2,20 +2,20 @@
 """Export Apache Ranger Kafka-service policies to the canonical ACL-record YAML.
 
 Reads a local Ranger policy export JSON file (either a bare list of policy
-objects, or an object with a "policies" key holding that list -- both shapes
+objects, or an object with a "policies" key holding that list; both shapes
 occur across Ranger's "Export JSON" admin action and its plugin-download
-policy endpoint) and flattens each policy's resources x policyItems x
-accesses into the same {resource_type, resource_name, pattern_type,
-principal, host, operation, permission} record schema that export_cc_acls.py
-produces. acl_to_rolebindings.py therefore needs zero Ranger-specific code:
-every design invariant (DENY skip, LITERAL/PREFIXED-only, etc.) and every
-target's role/locator mapping applies identically regardless of source.
+policy endpoint) and flattens each policy's resources x policyItems x accesses into
+the same {resource_type, resource_name, pattern_type, principal, host,
+operation, permission} record schema that export_cc_acls.py produces.
+acl_to_rolebindings.py therefore needs no Ranger-specific code: every design
+invariant (DENY skip, LITERAL/PREFIXED-only, etc.) and every target's
+role/locator mapping applies the same way whatever the source.
 
 Ranger's accessType vocabulary and per-resource-type restrictions are taken
 from Apache Ranger's own kafka service definition (ranger-servicedef-kafka.json):
 https://github.com/apache/ranger/blob/master/agents-common/src/main/resources/service-defs/ranger-servicedef-kafka.json
 
-This only reads a local file -- it does not call the Ranger Admin REST API.
+This reads a local file only. It does not call the Ranger Admin REST API.
 
 Requires: PyYAML (pip install -r requirements.txt)
 """

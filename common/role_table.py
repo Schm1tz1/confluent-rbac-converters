@@ -2,11 +2,10 @@
 
 Shared by every RBAC target. Confluent Cloud IAM v2 and Confluent Platform
 RBAC (via MDS) both ship predefined roles under these same names
-(DeveloperRead/DeveloperWrite/DeveloperManage, ResourceOwner, ...), so both
-targets/cc_rbac.py and targets/cp_mds.py delegate here rather than each
-keeping their own copy. If a future target's role names diverge from this
-table, give it its own roles_for() instead of importing this one -- don't
-bend this table to fit it.
+(DeveloperRead/DeveloperWrite/DeveloperManage, ResourceOwner, ...), so
+targets/cc_rbac.py and targets/cp_mds.py both delegate here. If a future
+target's role names diverge, give it its own roles_for() instead of bending
+this table.
 """
 from __future__ import annotations
 
